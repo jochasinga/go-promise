@@ -1,5 +1,7 @@
 package promise
 
+import "fmt"
+
 // Thenable has a Then method
 type Thenable interface {
 	Then(ResolveFunc, ...RejectFunc) Thenable
@@ -19,17 +21,13 @@ type (
 	RejectFunc func(error)
 )
 
-// NewPromise constructs a Promise around a function which returns an interface{} and error type
+// New constructs a Promise around a function which returns an interface{} and error type
 func New(fn func() (interface{}, error)) *Promise {
 	p := &Promise{
-		resolved: make(chan interface{}),
-		rejected: make(chan error),
+		resolved: make(chan interface{}, 1),
+		rejected: make(chan error, 1),
 	}
 	go func() {
-		defer func() {
-			close(p.resolved)
-			close(p.rejected)
-		}()
 		if res, err := fn(); err != nil {
 			p.rejected <- err
 		} else {
@@ -39,9 +37,21 @@ func New(fn func() (interface{}, error)) *Promise {
 	return p
 }
 
-// From makes an existing Promise work from a resolve channel and optional error channel
+func NewPromise() *Promise {
+	return &Promise{
+		resolved: make(chan interface{}, 1),
+		rejected: make(chan error, 1),
+	}
+}
+
+// From creates a new Promise from a resolve channel and optional error channel
 func From(rc chan interface{}, errc ...chan error) *Promise {
 	p := &Promise{}
+	return p.From(rc, errc...)
+}
+
+// From makes an existing Promise work from a resolve and optional error channel
+func (p *Promise) From(rc chan interface{}, errc ...chan error) *Promise {
 	if rc != nil {
 		p.resolved = rc
 	}
@@ -85,6 +95,28 @@ func (p *Promise) Then(resolve ResolveFunc, reject ...RejectFunc) Thenable {
 				}
 			}
 		}
+	}()
+	return p
+}
+
+// Resolve saves the interface{} value for next Then chain
+func (p *Promise) Resolve(any interface{}) Thenable {
+	if _, ok := <-p.resolved; !ok {
+		p.resolved = make(chan interface{}, 1)
+	}
+	go func() {
+		p.resolved <- any
+	}()
+	return p
+}
+
+// Reject saves the error value for next Then chain
+func (p *Promise) Reject(reason string, values ...interface{}) Thenable {
+	if _, ok := <-p.rejected; !ok {
+		p.rejected = make(chan error, 1)
+	}
+	go func() {
+		p.rejected <- fmt.Errorf(reason, values...)
 	}()
 	return p
 }

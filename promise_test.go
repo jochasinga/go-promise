@@ -40,6 +40,68 @@ func TestPromiseRejected(t *testing.T) {
 	})
 }
 
+func TestPromiseWithResolveMethod(t *testing.T) {
+	p := New(func() (interface{}, error) {
+		return "ehlo", nil
+	})
+	p.Then(func(result interface{}) {
+		assert.Equal(t, result, "ehlo")
+		p.Resolve(result)
+	}).Then(func(result interface{}) {
+		assert.Equal(t, result, "bello")
+	})
+}
+
+func TestPromiseWithRejectMethod(t *testing.T) {
+	assert := assert.New(t)
+	p := New(func() (interface{}, error) {
+		return nil, errors.New("too bad")
+	})
+	p.Then(func(result interface{}) {
+		assert.Nil(result)
+		p.Reject("too sad")
+	}).Then(nil, func(err error) {
+		assert.Equal(err.Error(), "too sad")
+		p.Reject("too mad")
+	}).Then(nil, func(err error) {
+		assert.Equal(err.Error(), "too mad")
+	})
+}
+
+func TestPromiseWithResolveFuncAndRejectFunc(t *testing.T) {
+	_ = New(func() (interface{}, error) {
+		return struct{}{}, nil
+	}).Then(func(result interface{}) {
+		assert.Equal(t, result, struct{}{})
+	}, func(err error) {
+		assert.Nil(t, err)
+	})
+}
+
+func TestPromiseWithMultipleThens(t *testing.T) {
+	assert := assert.New(t)
+	p := New(func() (interface{}, error) {
+		return "hello", nil
+	})
+	p.Then(func(result interface{}) {
+		assert.Equal(result, "hello")
+		p.Resolve(result)
+	}, func(err error) {
+		assert.Nil(err)
+	}).Then(func(result interface{}) {
+		assert.Equal(result, "hello")
+		p.Reject("Too bad")
+	}, func(err error) {
+		assert.Nil(err)
+	}).Then(func(result interface{}) {
+		assert.Nil(result)
+	}, func(err error) {
+		assert.NotNil(err)
+		assert.Equal(err.Error(), "Too bad")
+	})
+
+}
+
 func TestPromiseResolveWithDelay(t *testing.T) {
 	a := time.Now()
 	_ = New(func() (interface{}, error) {
@@ -55,7 +117,7 @@ func TestPromiseIsConcurrent(t *testing.T) {
 	var res interface{}
 	var _err error
 	_ = New(func() (interface{}, error) {
-		<-time.After(100)
+		<-time.After(200)
 		return struct{}{}, nil
 	}).Then(func(result interface{}) {
 		res = result
@@ -75,8 +137,19 @@ func TestPromiseIsConcurrent(t *testing.T) {
 
 func TestCreateNewPromiseFromChannel(t *testing.T) {
 	assert := assert.New(t)
-	resultC := make(chan interface{})
-	p := From(resultC)
+	result := make(chan interface{})
+	p := From(result)
+	assert.IsType(p, (*Promise)(nil))
+	assert.NotNil(p)
+	assert.NotNil(p.resolved)
+	assert.Nil(p.rejected)
+}
+
+func TestCreateExistingPromiseFromChannel(t *testing.T) {
+	assert := assert.New(t)
+	p := new(Promise)
+	result := make(chan interface{}, 1)
+	p = p.From(result)
 	assert.IsType(p, (*Promise)(nil))
 	assert.NotNil(p)
 	assert.NotNil(p.resolved)
