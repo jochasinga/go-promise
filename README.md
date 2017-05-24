@@ -6,21 +6,21 @@ Light-weight channel-compatible [Promise](https://promisesaplus.com/) implementa
 
 ```go
 
-        rc := make(chan interface{})
-        p1 := promise.From(rc)
-        p1.Then(func(result interface{}) {
-                fmt.Print(result)
-        })
+rc := make(chan interface{})
+p1 := promise.From(rc)
+p1.Then(func(result interface{}) {
+        fmt.Print(result)
+})
 
-        p2 := promise.New(func() (interface{}, error) {
-		<-time.After(100)
-		return "hello", nil
-	})
-        rc, errc := p2.To()
-        select {
-        case <-rc:
-        case <-errc:
-        }
+p2 := promise.New(func() (interface{}, error) {
+        <-time.After(100)
+        return "hello", nil
+})
+rc, errc := p2.To()
+select {
+case <-rc:
+case <-errc:
+}
 
 ```
 
@@ -28,15 +28,15 @@ Light-weight channel-compatible [Promise](https://promisesaplus.com/) implementa
 
 ```go
 
-        p := promise.New(func() (interface{}, error) {
-                return http.Get("www.google.com")
-        })
-        p.Then(func(result interface{}) {
-                if res, ok := result.(*http.Response); ok {
-                        fmt.Print(res.StatusCode)
-                }
-        }, func(err error) {
-                panic(err)
-        })
+p := promise.New(func() (interface{}, error) {
+        return http.Get("www.google.com")
+})
+p.Then(func(result interface{}) {
+        if res, ok := result.(*http.Response); ok {
+                fmt.Print(res.StatusCode)
+        }
+}, func(err error) {
+        panic(err)
+})
 
 ```
